@@ -93,8 +93,12 @@ local basic_flame_on_construct -- cached value
 local function destroy(drops, npos, cid, c_air, c_fire,
 		on_blast_queue, on_construct_queue,
 		ignore_protection, ignore_on_blast, owner)
-	if not ignore_protection and minetest.is_protected(npos, owner) then
+	if areas and not ignore_protection and areas:canInteract(npos, owner) then
 		return cid
+	else
+		if not ignore_protection and minetest.is_protected(npos, owner) then
+			return cid
+		end
 	end
 
 	local def = cid_data[cid]
