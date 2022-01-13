@@ -20,6 +20,8 @@ loss_prob["default:dirt"] = 4
 
 local tnt_radius = tonumber(minetest.settings:get("tnt_radius") or 3)
 
+local has_areas = minetest.get_modpath("areas")
+
 -- Fill a list with data for content IDs, after all nodes are registered
 local cid_data = {}
 minetest.register_on_mods_loaded(function()
@@ -91,20 +93,12 @@ end
 
 local basic_flame_on_construct -- cached value
 local function destroy(drops, npos, cid, c_air, c_fire,
-		on_blast_queue, on_construct_queue,
-		ignore_protection, ignore_on_blast, owner)
-	if areas and not ignore_protection and areas:canInteract(npos, owner) then
-		return cid
-	else
-		if not ignore_protection and minetest.is_protected(npos, owner) then
-			return cid
-		end
-	end
-
+		on_blast_queue, on_construct_queue, ignore_on_blast)
 	local def = cid_data[cid]
 
 	if not def then
-		return c_air
+		return cid
+
 	elseif not ignore_on_blast and def.on_blast then
 		on_blast_queue[#on_blast_queue + 1] = {
 			pos = vector.new(npos),
@@ -118,7 +112,7 @@ local function destroy(drops, npos, cid, c_air, c_fire,
 		}
 		return c_fire
 	else
-		local node_drops = minetest.get_node_drops(def.name, "")
+		local node_drops = minetest.get_node_drops(def.name, "tnt:boom")
 		for _, item in pairs(node_drops) do
 			add_drop(drops, item)
 		end
@@ -288,7 +282,7 @@ function tnt.burn(pos, nodename)
 	end
 end
 
-local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owner, explode_center)
+local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owner)
 	pos = vector.round(pos)
 	-- scan for adjacent TNT nodes first, and enlarge the explosion
 	local vm1 = VoxelManip()
@@ -297,7 +291,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	local minp, maxp = vm1:read_from_map(p1, p2)
 	local a = VoxelArea:new({MinEdge = minp, MaxEdge = maxp})
 	local data = vm1:get_data()
-	local count = 0
+	local count = 1
 	local c_tnt
 	local c_tnt_burning = minetest.get_content_id("tnt:tnt_burning")
 	local c_tnt_boom = minetest.get_content_id("tnt:boom")
@@ -306,10 +300,6 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 		c_tnt = minetest.get_content_id("tnt:tnt")
 	else
 		c_tnt = c_tnt_burning -- tnt is not registered if disabled
-	end
-	-- make sure we still have explosion even when centre node isnt tnt related
-	if explode_center then
-		count = 1
 	end
 
 	for z = pos.z - 2, pos.z + 2 do
@@ -355,10 +345,13 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 		if (radius * radius) / (r * r) >= (pr:next(80, 125) / 100) then
 			local cid = data[vi]
 			local p = {x = pos.x + x, y = pos.y + y, z = pos.z + z}
-			if cid ~= c_air then
+
+			if cid ~= c_air and ignore_protection or (
+					(not has_areas or areas:canInteract(p, owner)) and
+					 not minetest.is_protected(p, owner)
+			) then
 				data[vi] = destroy(drops, p, cid, c_air, c_fire,
-					on_blast_queue, on_construct_queue,
-					ignore_protection, ignore_on_blast, owner)
+					on_blast_queue, on_construct_queue, ignore_on_blast)
 			end
 		end
 		vi = vi + 1
@@ -406,20 +399,28 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	return drops, radius
 end
 
+--[[
+{
+	radius = 1,
+	damage_radius = 2,
+	sound = "tnt_explode",
+	disable_drops = false,
+	ignore_protection = false,
+	ignore_on_blast = false,
+	tiles = {"tnt_side.png", "tnt_top.png", "tnt_bottom.png", "tnt_burning.png"},
+}
+]]
 function tnt.boom(pos, def)
 	def = def or {}
 	def.radius = def.radius or 1
 	def.damage_radius = def.damage_radius or def.radius * 2
 	local meta = minetest.get_meta(pos)
 	local owner = meta:get_string("owner")
-	if not def.explode_center and def.ignore_protection ~= true then
-		minetest.set_node(pos, {name = "tnt:boom"})
-	end
 	local sound = def.sound or "tnt_explode"
 	minetest.sound_play(sound, {pos = pos, gain = 2.5,
 			max_hear_distance = math.min(def.radius * 20, 128)}, true)
 	local drops, radius = tnt_explode(pos, def.radius, def.ignore_protection,
-			def.ignore_on_blast, owner, def.explode_center)
+			def.ignore_on_blast, owner)
 	-- append entity drops
 	local damage_radius = (radius / math.max(1, def.radius)) * def.damage_radius
 	entity_physics(pos, damage_radius, drops)
