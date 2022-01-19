@@ -461,6 +461,13 @@ minetest.register_node("tnt:boom", {
 	groups = {dig_immediate = 3, not_in_creative_inventory = 1},
 	-- unaffected by explosions
 	on_blast = function() end,
+	on_timer = function(pos, elapsed)
+		if elapsed > 0 then
+			minetest.remove_node(pos)
+		else
+			return true
+		end
+	end,
 })
 
 minetest.register_node("tnt:gunpowder", {
