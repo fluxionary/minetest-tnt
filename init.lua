@@ -165,9 +165,9 @@ local function entity_physics(pos, radius, drops, owner)
 			local puncher = minetest.get_player_by_name(owner)
 			if puncher then
 				obj:punch(puncher, 1.0, {
-	                full_punch_interval = 1.0,
-	                damage_groups = {explody = damage},
-	            }, dir)
+					full_punch_interval = 1.0,
+					damage_groups = {explody = damage},
+				}, dir)
 
 			else
 				local moveoff = vector.multiply(dir, 2 / dist * radius)
