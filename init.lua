@@ -153,19 +153,27 @@ local function calc_velocity(pos1, pos2, old_vel, power)
 	return vel
 end
 
-local function entity_physics(pos, radius, drops)
+local function entity_physics(pos, radius, drops, owner)
 	local objs = minetest.get_objects_inside_radius(pos, radius)
 	for _, obj in pairs(objs) do
 		local obj_pos = obj:get_pos()
 		local dist = math.max(1, vector.distance(pos, obj_pos))
 
 		local damage = (4 / dist) * radius
-		if obj:is_player() then
+		if minetest.is_player(obj) then
 			local dir = vector.normalize(vector.subtract(obj_pos, pos))
-			local moveoff = vector.multiply(dir, 2 / dist * radius)
-			obj:add_velocity(moveoff)
+			local puncher = minetest.get_player_by_name(owner)
+			if puncher then
+				obj:punch(puncher, 1.0, {
+	                full_punch_interval = 1.0,
+	                damage_groups = {explody = damage},
+	            }, dir)
 
-			obj:set_hp(obj:get_hp() - damage)
+			else
+				local moveoff = vector.multiply(dir, 2 / dist * radius)
+				obj:add_velocity(moveoff)
+				obj:set_hp(obj:get_hp() - damage)
+			end
 		else
 			local luaobj = obj:get_luaentity()
 
@@ -434,7 +442,7 @@ function tnt.boom(pos, def)
 	def.radius = def.radius or 1
 	def.damage_radius = def.damage_radius or def.radius * 2
 	local meta = minetest.get_meta(pos)
-	local owner = meta:get_string("owner")
+	local owner = def.owner or meta:get_string("owner")
 	local sound = def.sound or "tnt_explode"
 	minetest.sound_play(sound, {pos = pos, gain = 2.5,
 			max_hear_distance = math.min(def.radius * 20, 128)}, true)
@@ -442,7 +450,7 @@ function tnt.boom(pos, def)
 			def.ignore_on_blast, owner)
 	-- append entity drops
 	local damage_radius = (radius / math.max(1, def.radius)) * def.damage_radius
-	entity_physics(pos, damage_radius, drops)
+	entity_physics(pos, damage_radius, drops, owner)
 	if not def.disable_drops then
 		eject_drops(drops, pos, radius)
 	end
