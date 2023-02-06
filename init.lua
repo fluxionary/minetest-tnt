@@ -201,8 +201,10 @@ local function entity_physics(pos, radius, drops, owner)
 						}, nil)
 					end
 				end
-				for _, item in pairs(entity_drops) do
-					add_drop(drops, item)
+				if entity_drops then
+					for _, item in pairs(entity_drops) do
+						add_drop(drops, item)
+					end
 				end
 			end
 		end
