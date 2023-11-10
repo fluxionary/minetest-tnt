@@ -8,6 +8,7 @@ PilzAdam (MIT)
 ShadowNinja (MIT)
 sofar (sofar@foo-projects.org) (MIT)
 Various Minetest developers and contributors (MIT)
+fluxionary (LGPL)
 
 Authors of media
 ----------------
