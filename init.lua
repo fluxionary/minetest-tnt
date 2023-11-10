@@ -305,7 +305,8 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	local c_tnt
 	local c_tnt_burning = minetest.get_content_id("tnt:tnt_burning")
 	local c_tnt_boom = minetest.get_content_id("tnt:boom")
-	local c_air = minetest.get_content_id("air")
+	local c_air = minetest.CONTENT_AIR
+	local c_ignore = minetest.CONTENT_IGNORE
 	if enable_tnt then
 		c_tnt = minetest.get_content_id("tnt:tnt")
 	else
@@ -363,7 +364,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 			local cid = data[vi]
 			local p = {x = pos.x + x, y = pos.y + y, z = pos.z + z}
 
-			if cid ~= c_air and ignore_protection or (
+			if cid ~= c_air and cid ~= c_ignore and ignore_protection or (
 					(not has_areas or areas:canInteract(p, owner)) and
 					 not minetest.is_protected(p, owner)
 			) then
