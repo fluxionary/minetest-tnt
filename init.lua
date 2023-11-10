@@ -1,26 +1,22 @@
 -- tnt/init.lua
 
-tnt = {}
+tnt = fmod.create()
 
 -- Load support for MT game translation.
-local S = minetest.get_translator("tnt")
-
+local S = tnt.S
 
 -- Default to enabled when in singleplayer
-local enable_tnt = minetest.settings:get_bool("enable_tnt")
-if enable_tnt == nil then
-	enable_tnt = minetest.is_singleplayer()
-end
+local enable_tnt = tnt.settings.enable
 
 -- loss probabilities array (one in X will be lost)
-local loss_prob = {}
+tnt.loss_prob = {}
 
-loss_prob["default:cobble"] = 3
-loss_prob["default:dirt"] = 4
+tnt.loss_prob["default:cobble"] = 3
+tnt.loss_prob["default:dirt"] = 4
 
-local tnt_radius = tonumber(minetest.settings:get("tnt_radius") or 3)
+local tnt_radius = tnt.settings.radius
 
-local has_areas = minetest.get_modpath("areas")
+local has_areas = tnt.has.areas
 
 -- Fill a list with data for content IDs, after all nodes are registered
 local cid_data = {}
@@ -57,19 +53,19 @@ local function eject_drops(drops, pos, radius)
 	for _, item in pairs(drops) do
 		local count = math.min(item:get_count(), item:get_stack_max())
 		while count > 0 do
-			local take = math.max(1,math.min(radius * radius,
-					count,
-					item:get_stack_max()))
+			local take = math.max(1, math.min(radius * radius, count, item:get_stack_max()))
 			rand_pos(pos, drop_pos, radius)
 			local dropitem = ItemStack(item)
 			dropitem:set_count(take)
 			local obj = minetest.add_item(drop_pos, dropitem)
 			if obj then
 				obj:get_luaentity().collect = true
-				obj:set_acceleration({x = 0, y = -10, z = 0})
-				obj:set_velocity({x = math.random(-3, 3),
-						y = math.random(0, 10),
-						z = math.random(-3, 3)})
+				obj:set_acceleration({ x = 0, y = -10, z = 0 })
+				obj:set_velocity({
+					x = math.random(-3, 3),
+					y = math.random(0, 10),
+					z = math.random(-3, 3),
+				})
 			end
 			count = count - take
 		end
@@ -79,7 +75,7 @@ end
 local function add_drop(drops, item)
 	item = ItemStack(item)
 	local name = item:get_name()
-	if loss_prob[name] ~= nil and math.random(1, loss_prob[name]) == 1 then
+	if tnt.loss_prob[name] ~= nil and math.random(1, tnt.loss_prob[name]) == 1 then
 		return
 	end
 
@@ -92,23 +88,21 @@ local function add_drop(drops, item)
 end
 
 local basic_flame_on_construct -- cached value
-local function destroy(drops, npos, cid, c_air, c_fire,
-		on_blast_queue, on_construct_queue, ignore_on_blast)
+local function destroy(drops, npos, cid, c_air, c_fire, on_blast_queue, on_construct_queue, ignore_on_blast)
 	local def = cid_data[cid]
 
 	if not def then
 		return cid
-
 	elseif not ignore_on_blast and def.on_blast then
 		on_blast_queue[#on_blast_queue + 1] = {
 			pos = vector.new(npos),
-			on_blast = def.on_blast
+			on_blast = def.on_blast,
 		}
 		return cid
 	elseif def.flammable then
 		on_construct_queue[#on_construct_queue + 1] = {
 			fn = basic_flame_on_construct,
-			pos = vector.new(npos)
+			pos = vector.new(npos),
 		}
 		return c_fire
 	else
@@ -158,17 +152,16 @@ local function entity_physics(pos, radius, drops, owner)
 	for _, obj in pairs(objs) do
 		local obj_pos = obj:get_pos()
 		local dist = math.max(1, vector.distance(pos, obj_pos))
-
 		local damage = (4 / dist) * radius
+		local puncher = minetest.get_player_by_name(owner)
+
 		if minetest.is_player(obj) then
 			local dir = vector.normalize(vector.subtract(obj_pos, pos))
-			local puncher = minetest.get_player_by_name(owner)
 			if puncher then
 				obj:punch(puncher, 1.0, {
 					full_punch_interval = 1.0,
-					damage_groups = {explody = damage},
+					damage_groups = { explody = damage },
 				}, dir)
-
 			else
 				local moveoff = vector.multiply(dir, 2 / dist * radius)
 				obj:add_velocity(moveoff)
@@ -190,15 +183,21 @@ local function entity_physics(pos, radius, drops, owner)
 
 				if do_knockback then
 					local obj_vel = obj:get_velocity()
-					obj:set_velocity(calc_velocity(pos, obj_pos,
-							obj_vel, radius * 10))
+					obj:set_velocity(calc_velocity(pos, obj_pos, obj_vel, radius * 10))
 				end
 				if do_damage then
 					if not obj:get_armor_groups().immortal then
-						obj:punch(obj, 1.0, {
-							full_punch_interval = 1.0,
-							damage_groups = {fleshy = damage},
-						}, nil)
+						if puncher then
+							obj:punch(puncher, 1.0, {
+								full_punch_interval = 1.0,
+								damage_groups = { fleshy = damage },
+							}, nil)
+						else
+							obj:punch(obj, 1.0, {
+								full_punch_interval = 1.0,
+								damage_groups = { fleshy = damage },
+							}, nil)
+						end
 					end
 				end
 				if entity_drops then
@@ -228,8 +227,8 @@ local function add_effects(pos, radius, drops)
 		time = 0.5,
 		minpos = vector.subtract(pos, radius / 2),
 		maxpos = vector.add(pos, radius / 2),
-		minvel = {x = -10, y = -10, z = -10},
-		maxvel = {x = 10, y = 10, z = 10},
+		minvel = { x = -10, y = -10, z = -10 },
+		maxvel = { x = 10, y = 10, z = 10 },
 		minacc = vector.new(),
 		maxacc = vector.new(),
 		minexptime = 1,
@@ -263,10 +262,10 @@ local function add_effects(pos, radius, drops)
 		time = 0.1,
 		minpos = vector.subtract(pos, radius / 2),
 		maxpos = vector.add(pos, radius / 2),
-		minvel = {x = -3, y = 0, z = -3},
-		maxvel = {x = 3, y = 5,  z = 3},
-		minacc = {x = 0, y = -10, z = 0},
-		maxacc = {x = 0, y = -10, z = 0},
+		minvel = { x = -3, y = 0, z = -3 },
+		maxvel = { x = 3, y = 5, z = 3 },
+		minacc = { x = 0, y = -10, z = 0 },
+		maxacc = { x = 0, y = -10, z = 0 },
 		minexptime = 0.8,
 		maxexptime = 2.0,
 		minsize = radius * 0.33,
@@ -286,8 +285,8 @@ function tnt.burn(pos, nodename)
 	elseif def.on_ignite then
 		def.on_ignite(pos)
 	elseif minetest.get_item_group(name, "tnt") > 0 then
-		minetest.swap_node(pos, {name = name .. "_burning"})
-		minetest.sound_play("tnt_ignite", {pos = pos}, true)
+		minetest.swap_node(pos, { name = name .. "_burning" })
+		minetest.sound_play("tnt_ignite", { pos = pos }, true)
 		minetest.get_node_timer(pos):start(1)
 	end
 end
@@ -299,7 +298,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	local p1 = vector.subtract(pos, 2)
 	local p2 = vector.add(pos, 2)
 	local minp, maxp = vm1:read_from_map(p1, p2)
-	local a = VoxelArea:new({MinEdge = minp, MaxEdge = maxp})
+	local a = VoxelArea:new({ MinEdge = minp, MaxEdge = maxp })
 	local data = vm1:get_data()
 	local count = 1
 	local c_tnt
@@ -316,29 +315,29 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	-- don't double-count tnt @ the center
 	local vc = a:index(pos.x, pos.y, pos.z)
 	local ccid = data[vc]
-	if (ccid == c_tnt or ccid == c_tnt_boom or ccid == c_tnt_burning) then
+	if ccid == c_tnt or ccid == c_tnt_boom or ccid == c_tnt_burning then
 		data[vc] = c_air
 	end
 
 	for z = pos.z - 2, pos.z + 2 do
-	for y = pos.y - 2, pos.y + 2 do
-		local vi = a:index(pos.x - 2, y, z)
-		for x = pos.x - 2, pos.x + 2 do
-			local cid = data[vi]
-			if cid == c_tnt or cid == c_tnt_boom or cid == c_tnt_burning then
-				count = count + 1
-				data[vi] = c_air
+		for y = pos.y - 2, pos.y + 2 do
+			local vi = a:index(pos.x - 2, y, z)
+			for x = pos.x - 2, pos.x + 2 do
+				local cid = data[vi]
+				if cid == c_tnt or cid == c_tnt_boom or cid == c_tnt_burning then
+					count = count + 1
+					data[vi] = c_air
+				end
+				vi = vi + 1
 			end
-			vi = vi + 1
 		end
-	end
 	end
 
 	vm1:set_data(data)
 	vm1:write_to_map()
 
 	-- recalculate new radius
-	radius = math.floor(radius * math.pow(count, 1/3))
+	radius = math.floor(radius * math.pow(count, 1 / 3))
 
 	-- perform the explosion
 	local vm = VoxelManip()
@@ -346,7 +345,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	p1 = vector.subtract(pos, radius)
 	p2 = vector.add(pos, radius)
 	minp, maxp = vm:read_from_map(p1, p2)
-	a = VoxelArea:new({MinEdge = minp, MaxEdge = maxp})
+	a = VoxelArea:new({ MinEdge = minp, MaxEdge = maxp })
 	data = vm:get_data()
 
 	local drops = {}
@@ -356,25 +355,25 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 
 	local c_fire = minetest.get_content_id("fire:basic_flame")
 	for z = -radius, radius do
-	for y = -radius, radius do
-	local vi = a:index(pos.x + (-radius), pos.y + y, pos.z + z)
-	for x = -radius, radius do
-		local r = vector.length(vector.new(x, y, z))
-		if (radius * radius) / (r * r) >= (pr:next(80, 125) / 100) then
-			local cid = data[vi]
-			local p = {x = pos.x + x, y = pos.y + y, z = pos.z + z}
+		for y = -radius, radius do
+			local vi = a:index(pos.x + -radius, pos.y + y, pos.z + z)
+			for x = -radius, radius do
+				local r = vector.length(vector.new(x, y, z))
+				if (radius * radius) / (r * r) >= (pr:next(80, 125) / 100) then
+					local cid = data[vi]
+					local p = { x = pos.x + x, y = pos.y + y, z = pos.z + z }
 
-			if cid ~= c_air and cid ~= c_ignore and ignore_protection or (
-					(not has_areas or areas:canInteract(p, owner)) and
-					 not minetest.is_protected(p, owner)
-			) then
-				data[vi] = destroy(drops, p, cid, c_air, c_fire,
-					on_blast_queue, on_construct_queue, ignore_on_blast)
+					if
+						cid ~= c_air and cid ~= c_ignore and ignore_protection
+						or ((not has_areas or areas:canInteract(p, owner)) and not minetest.is_protected(p, owner))
+					then
+						data[vi] =
+							destroy(drops, p, cid, c_air, c_fire, on_blast_queue, on_construct_queue, ignore_on_blast)
+					end
+				end
+				vi = vi + 1
 			end
 		end
-		vi = vi + 1
-	end
-	end
 	end
 
 	-- make the center of the explosion flash, if it's safe
@@ -396,16 +395,16 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 
 	-- call check_single_for_falling for everything within 1.5x blast radius
 	for y = -radius * 1.5, radius * 1.5 do
-	for z = -radius * 1.5, radius * 1.5 do
-	for x = -radius * 1.5, radius * 1.5 do
-		local rad = {x = x, y = y, z = z}
-		local s = vector.add(pos, rad)
-		local r = vector.length(rad)
-		if r / radius < 1.4 then
-			minetest.check_single_for_falling(s)
+		for z = -radius * 1.5, radius * 1.5 do
+			for x = -radius * 1.5, radius * 1.5 do
+				local rad = { x = x, y = y, z = z }
+				local s = vector.add(pos, rad)
+				local r = vector.length(rad)
+				if r / radius < 1.4 then
+					minetest.check_single_for_falling(s)
+				end
+			end
 		end
-	end
-	end
 	end
 
 	for _, queued_data in pairs(on_blast_queue) do
@@ -423,8 +422,10 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 		queued_data.fn(queued_data.pos)
 	end
 
-	minetest.log("action", "TNT owned by " .. owner .. " detonated at " ..
-		minetest.pos_to_string(pos) .. " with radius " .. radius)
+	minetest.log(
+		"action",
+		"TNT owned by " .. owner .. " detonated at " .. minetest.pos_to_string(pos) .. " with radius " .. radius
+	)
 
 	return drops, radius
 end
@@ -447,10 +448,8 @@ function tnt.boom(pos, def)
 	local meta = minetest.get_meta(pos)
 	local owner = def.owner or meta:get_string("owner")
 	local sound = def.sound or "tnt_explode"
-	minetest.sound_play(sound, {pos = pos, gain = 2.5,
-			max_hear_distance = math.min(def.radius * 20, 128)}, true)
-	local drops, radius = tnt_explode(pos, def.radius, def.ignore_protection,
-			def.ignore_on_blast, owner)
+	minetest.sound_play(sound, { pos = pos, gain = 2.5, max_hear_distance = math.min(def.radius * 20, 128) }, true)
+	local drops, radius = tnt_explode(pos, def.radius, def.ignore_protection, def.ignore_on_blast, owner)
 	-- append entity drops
 	local damage_radius = (radius / math.max(1, def.radius)) * def.damage_radius
 	entity_physics(pos, damage_radius, drops, owner)
@@ -458,18 +457,17 @@ function tnt.boom(pos, def)
 		eject_drops(drops, pos, radius)
 	end
 	add_effects(pos, radius, drops)
-	minetest.log("action", "A TNT explosion occurred at " .. minetest.pos_to_string(pos) ..
-		" with radius " .. radius)
+	minetest.log("action", "A TNT explosion occurred at " .. minetest.pos_to_string(pos) .. " with radius " .. radius)
 end
 
 minetest.register_node("tnt:boom", {
 	drawtype = "airlike",
 	inventory_image = "tnt_boom.png",
 	wield_image = "tnt_boom.png",
-	light_source = default.LIGHT_MAX,
+	light_source = minetest.LIGHT_MAX,
 	walkable = false,
 	drop = "",
-	groups = {dig_immediate = 3, not_in_creative_inventory = 1},
+	groups = { dig_immediate = 3, not_in_creative_inventory = 1 },
 	-- unaffected by explosions
 	on_blast = function() end,
 	on_timer = function(pos, elapsed)
@@ -492,34 +490,39 @@ minetest.register_node("tnt:gunpowder", {
 		"tnt_gunpowder_straight.png",
 		"tnt_gunpowder_curved.png",
 		"tnt_gunpowder_t_junction.png",
-		"tnt_gunpowder_crossing.png"
+		"tnt_gunpowder_crossing.png",
 	},
 	inventory_image = "tnt_gunpowder_inventory.png",
 	wield_image = "tnt_gunpowder_inventory.png",
 	selection_box = {
 		type = "fixed",
-		fixed = {-1/2, -1/2, -1/2, 1/2, -1/2+1/16, 1/2},
+		fixed = { -1 / 2, -1 / 2, -1 / 2, 1 / 2, -1 / 2 + 1 / 16, 1 / 2 },
 	},
-	groups = {dig_immediate = 2, attached_node = 1, flammable = 5,
-		connect_to_raillike = minetest.raillike_group("gunpowder")},
+	groups = {
+		dig_immediate = 2,
+		attached_node = 1,
+		flammable = 5,
+		connect_to_raillike = minetest.raillike_group("gunpowder"),
+	},
 	sounds = default.node_sound_leaves_defaults(),
 
 	on_punch = function(pos, node, puncher)
 		if puncher:get_wielded_item():get_name() == "default:torch" then
-			minetest.set_node(pos, {name = "tnt:gunpowder_burning"})
-			minetest.log("action", puncher:get_player_name() ..
-				" ignites tnt:gunpowder at " ..
-				minetest.pos_to_string(pos))
+			minetest.set_node(pos, { name = "tnt:gunpowder_burning" })
+			minetest.log(
+				"action",
+				puncher:get_player_name() .. " ignites tnt:gunpowder at " .. minetest.pos_to_string(pos)
+			)
 		end
 	end,
 	on_blast = function(pos, intensity)
-		minetest.set_node(pos, {name = "tnt:gunpowder_burning"})
+		minetest.set_node(pos, { name = "tnt:gunpowder_burning" })
 	end,
 	on_burn = function(pos)
-		minetest.set_node(pos, {name = "tnt:gunpowder_burning"})
+		minetest.set_node(pos, { name = "tnt:gunpowder_burning" })
 	end,
 	on_ignite = function(pos, igniter)
-		minetest.set_node(pos, {name = "tnt:gunpowder_burning"})
+		minetest.set_node(pos, { name = "tnt:gunpowder_burning" })
 	end,
 })
 
@@ -529,75 +532,76 @@ minetest.register_node("tnt:gunpowder_burning", {
 	sunlight_propagates = true,
 	walkable = false,
 	light_source = 5,
-	tiles = {{
-		name = "tnt_gunpowder_burning_straight_animated.png",
-		animation = {
-			type = "vertical_frames",
-			aspect_w = 16,
-			aspect_h = 16,
-			length = 1,
-		}
+	tiles = {
+		{
+			name = "tnt_gunpowder_burning_straight_animated.png",
+			animation = {
+				type = "vertical_frames",
+				aspect_w = 16,
+				aspect_h = 16,
+				length = 1,
+			},
+		},
+		{
+			name = "tnt_gunpowder_burning_curved_animated.png",
+			animation = {
+				type = "vertical_frames",
+				aspect_w = 16,
+				aspect_h = 16,
+				length = 1,
+			},
+		},
+		{
+			name = "tnt_gunpowder_burning_t_junction_animated.png",
+			animation = {
+				type = "vertical_frames",
+				aspect_w = 16,
+				aspect_h = 16,
+				length = 1,
+			},
+		},
+		{
+			name = "tnt_gunpowder_burning_crossing_animated.png",
+			animation = {
+				type = "vertical_frames",
+				aspect_w = 16,
+				aspect_h = 16,
+				length = 1,
+			},
+		},
 	},
-	{
-		name = "tnt_gunpowder_burning_curved_animated.png",
-		animation = {
-			type = "vertical_frames",
-			aspect_w = 16,
-			aspect_h = 16,
-			length = 1,
-		}
-	},
-	{
-		name = "tnt_gunpowder_burning_t_junction_animated.png",
-		animation = {
-			type = "vertical_frames",
-			aspect_w = 16,
-			aspect_h = 16,
-			length = 1,
-		}
-	},
-	{
-		name = "tnt_gunpowder_burning_crossing_animated.png",
-		animation = {
-			type = "vertical_frames",
-			aspect_w = 16,
-			aspect_h = 16,
-			length = 1,
-		}
-	}},
 	selection_box = {
 		type = "fixed",
-		fixed = {-1/2, -1/2, -1/2, 1/2, -1/2+1/16, 1/2},
+		fixed = { -1 / 2, -1 / 2, -1 / 2, 1 / 2, -1 / 2 + 1 / 16, 1 / 2 },
 	},
 	drop = "",
 	groups = {
 		dig_immediate = 2,
 		attached_node = 1,
 		connect_to_raillike = minetest.raillike_group("gunpowder"),
-		not_in_creative_inventory = 1
+		not_in_creative_inventory = 1,
 	},
 	sounds = default.node_sound_leaves_defaults(),
 	on_timer = function(pos, elapsed)
 		for dx = -1, 1 do
-		for dz = -1, 1 do
-			if math.abs(dx) + math.abs(dz) == 1 then
-				for dy = -1, 1 do
-					tnt.burn({
-						x = pos.x + dx,
-						y = pos.y + dy,
-						z = pos.z + dz,
-					})
+			for dz = -1, 1 do
+				if math.abs(dx) + math.abs(dz) == 1 then
+					for dy = -1, 1 do
+						tnt.burn({
+							x = pos.x + dx,
+							y = pos.y + dy,
+							z = pos.z + dz,
+						})
+					end
 				end
 			end
-		end
 		end
 		minetest.remove_node(pos)
 	end,
 	-- unaffected by explosions
 	on_blast = function() end,
 	on_construct = function(pos)
-		minetest.sound_play("tnt_gunpowder_burning", {pos = pos,
-			gain = 2}, true)
+		minetest.sound_play("tnt_gunpowder_burning", { pos = pos, gain = 2 }, true)
 		minetest.get_node_timer(pos):start(1)
 	end,
 })
@@ -605,38 +609,38 @@ minetest.register_node("tnt:gunpowder_burning", {
 minetest.register_craft({
 	output = "tnt:gunpowder 5",
 	type = "shapeless",
-	recipe = {"default:coal_lump", "default:gravel"}
+	recipe = { "default:coal_lump", "default:gravel" },
 })
 
 minetest.register_craftitem("tnt:tnt_stick", {
 	description = S("TNT Stick"),
 	inventory_image = "tnt_tnt_stick.png",
-	groups = {flammable = 5},
+	groups = { flammable = 5 },
 })
 
 if enable_tnt then
 	minetest.register_craft({
 		output = "tnt:tnt_stick 2",
 		recipe = {
-			{"tnt:gunpowder", "", "tnt:gunpowder"},
-			{"tnt:gunpowder", "default:paper", "tnt:gunpowder"},
-			{"tnt:gunpowder", "", "tnt:gunpowder"},
-		}
+			{ "tnt:gunpowder", "", "tnt:gunpowder" },
+			{ "tnt:gunpowder", "default:paper", "tnt:gunpowder" },
+			{ "tnt:gunpowder", "", "tnt:gunpowder" },
+		},
 	})
 
 	minetest.register_craft({
 		output = "tnt:tnt",
 		recipe = {
-			{"tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick"},
-			{"tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick"},
-			{"tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick"}
-		}
+			{ "tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick" },
+			{ "tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick" },
+			{ "tnt:tnt_stick", "tnt:tnt_stick", "tnt:tnt_stick" },
+		},
 	})
 
 	minetest.register_abm({
 		label = "TNT ignition",
-		nodenames = {"group:tnt", "tnt:gunpowder"},
-		neighbors = {"fire:basic_flame", "default:lava_source", "default:lava_flowing"},
+		nodenames = { "group:tnt", "tnt:gunpowder" },
+		neighbors = { "fire:basic_flame", "default:lava_source", "default:lava_flowing" },
 		interval = 4,
 		chance = 1,
 		action = function(pos, node)
@@ -647,25 +651,29 @@ end
 
 function tnt.register_tnt(def)
 	local name
-	if not def.name:find(':') then
+	if not def.name:find(":") then
 		name = "tnt:" .. def.name
 	else
 		name = def.name
 		def.name = def.name:match(":([%w_]+)")
 	end
-	if not def.tiles then def.tiles = {} end
+	if not def.tiles then
+		def.tiles = {}
+	end
 	local tnt_top = def.tiles.top or def.name .. "_top.png"
 	local tnt_bottom = def.tiles.bottom or def.name .. "_bottom.png"
 	local tnt_side = def.tiles.side or def.name .. "_side.png"
 	local tnt_burning = def.tiles.burning or def.name .. "_top_burning_animated.png"
-	if not def.damage_radius then def.damage_radius = def.radius * 2 end
+	if not def.damage_radius then
+		def.damage_radius = def.radius * 2
+	end
 
 	if enable_tnt then
 		minetest.register_node(":" .. name, {
 			description = def.description,
-			tiles = {tnt_top, tnt_bottom, tnt_side},
+			tiles = { tnt_top, tnt_bottom, tnt_side },
 			is_ground_content = false,
-			groups = {dig_immediate = 2, mesecon = 2, tnt = 1, flammable = 5},
+			groups = { dig_immediate = 2, mesecon = 2, tnt = 1, flammable = 5 },
 			sounds = default.node_sound_wood_defaults(),
 			after_place_node = function(pos, placer)
 				if placer:is_player() then
@@ -675,11 +683,12 @@ function tnt.register_tnt(def)
 			end,
 			on_punch = function(pos, node, puncher)
 				if puncher:get_wielded_item():get_name() == "default:torch" then
-					minetest.swap_node(pos, {name = name .. "_burning"})
+					minetest.swap_node(pos, { name = name .. "_burning" })
 					minetest.registered_nodes[name .. "_burning"].on_construct(pos)
-					minetest.log("action", puncher:get_player_name() ..
-						" ignites " .. node.name .. " at " ..
-						minetest.pos_to_string(pos))
+					minetest.log(
+						"action",
+						puncher:get_player_name() .. " ignites " .. node.name .. " at " .. minetest.pos_to_string(pos)
+					)
 				end
 			end,
 			on_blast = function(pos, intensity)
@@ -687,19 +696,17 @@ function tnt.register_tnt(def)
 					tnt.boom(pos, def)
 				end)
 			end,
-			mesecons = {effector =
-				{action_on =
-					function(pos)
-						tnt.boom(pos, def)
-					end
-				}
-			},
+			mesecons = { effector = {
+				action_on = function(pos)
+					tnt.boom(pos, def)
+				end,
+			} },
 			on_burn = function(pos)
-				minetest.swap_node(pos, {name = name .. "_burning"})
+				minetest.swap_node(pos, { name = name .. "_burning" })
 				minetest.registered_nodes[name .. "_burning"].on_construct(pos)
 			end,
 			on_ignite = function(pos, igniter)
-				minetest.swap_node(pos, {name = name .. "_burning"})
+				minetest.swap_node(pos, { name = name .. "_burning" })
 				minetest.registered_nodes[name .. "_burning"].on_construct(pos)
 			end,
 		})
@@ -714,21 +721,22 @@ function tnt.register_tnt(def)
 					aspect_w = 16,
 					aspect_h = 16,
 					length = 1,
-				}
+				},
 			},
-			tnt_bottom, tnt_side
-			},
+			tnt_bottom,
+			tnt_side,
+		},
 		light_source = 5,
 		drop = "",
 		sounds = default.node_sound_wood_defaults(),
-		groups = {falling_node = 1, not_in_creative_inventory = 1},
+		groups = { falling_node = 1, not_in_creative_inventory = 1 },
 		on_timer = function(pos, elapsed)
 			tnt.boom(pos, def)
 		end,
 		-- unaffected by explosions
 		on_blast = function() end,
 		on_construct = function(pos)
-			minetest.sound_play("tnt_ignite", {pos = pos}, true)
+			minetest.sound_play("tnt_ignite", { pos = pos }, true)
 			minetest.get_node_timer(pos):start(4)
 			minetest.check_for_falling(pos)
 		end,

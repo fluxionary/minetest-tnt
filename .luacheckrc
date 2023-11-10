@@ -645,12 +645,13 @@ stds.minetest = {
 	}
 }
 
-stds.tool_warnings = {
+stds.tnt = {
 	globals = {
 		"tnt",
 	},
 	read_globals = {
 		"fmod",
-		"futil",
+		"areas",
+		"default",
 	},
 }
