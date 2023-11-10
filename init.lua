@@ -185,7 +185,7 @@ local function entity_physics(pos, radius, drops, owner)
 				local objdef = minetest.registered_entities[luaobj.name]
 
 				if objdef and objdef.on_blast then
-					do_damage, do_knockback, entity_drops = objdef.on_blast(luaobj, damage)
+					do_damage, do_knockback, entity_drops = objdef.on_blast(luaobj, damage, owner)
 				end
 
 				if do_knockback then
@@ -411,7 +411,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	for _, queued_data in pairs(on_blast_queue) do
 		local dist = math.max(1, vector.distance(queued_data.pos, pos))
 		local intensity = (radius * radius) / (dist * dist)
-		local node_drops = queued_data.on_blast(queued_data.pos, intensity)
+		local node_drops = queued_data.on_blast(queued_data.pos, intensity, owner)
 		if node_drops then
 			for _, item in pairs(node_drops) do
 				add_drop(drops, item)
