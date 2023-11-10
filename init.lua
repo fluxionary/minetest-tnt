@@ -251,7 +251,7 @@ local function add_effects(pos, radius, drops)
 			if def then
 				node = { name = name }
 			end
-			if def and def.tiles and def.tiles[1] then
+			if def.tiles and type(def.tiles[1]) == "string" then
 				texture = def.tiles[1]
 			end
 		end
