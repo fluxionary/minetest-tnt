@@ -6,7 +6,10 @@ tnt = fmod.create()
 local S = tnt.S
 
 -- Default to enabled when in singleplayer
-local enable_tnt = tnt.settings.enable
+local enable_tnt = minetest.settings:get("enable_tnt")
+if enable_tnt == nil then
+	enable_tnt = tnt.settings.enable
+end
 
 -- loss probabilities array (one in X will be lost)
 tnt.loss_prob = {}
