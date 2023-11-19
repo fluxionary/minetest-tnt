@@ -249,13 +249,13 @@ local function add_effects(pos, radius, drops)
 	for name, stack in pairs(drops) do
 		local count = stack:get_count()
 		if count > most then
-			most = count
 			local def = minetest.registered_nodes[name]
 			if def then
 				node = { name = name }
-			end
-			if def.tiles and type(def.tiles[1]) == "string" then
-				texture = def.tiles[1]
+				most = count
+				if def.tiles and type(def.tiles[1]) == "string" then
+					texture = def.tiles[1]
+				end
 			end
 		end
 	end
