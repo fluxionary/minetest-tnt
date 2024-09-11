@@ -1,2 +1,2 @@
-tnt:enable (enable tnt) bool false
-tnt:radius (default tnt radius) float 3 1
+tnt.enable (enable tnt) bool false
+tnt.radius (default tnt radius) float 3 1
