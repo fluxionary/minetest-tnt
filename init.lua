@@ -151,8 +151,7 @@ local function calc_velocity(pos1, pos2, old_vel, power)
 end
 
 local function entity_physics(pos, radius, drops, owner)
-	local objs = minetest.get_objects_inside_radius(pos, radius)
-	for _, obj in pairs(objs) do
+	for obj in core.objects_inside_radius(pos, radius) do
 		local obj_pos = obj:get_pos()
 		local dist = math.max(1, vector.distance(pos, obj_pos))
 		local damage = (4 / dist) * radius
