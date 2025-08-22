@@ -349,6 +349,7 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	minp, maxp = vm:read_from_map(p1, p2)
 	a = VoxelArea:new({ MinEdge = minp, MaxEdge = maxp })
 	data = vm:get_data()
+	vc = a:index(pos.x, pos.y, pos.z)
 
 	local drops = {}
 	local on_blast_queue = {}
