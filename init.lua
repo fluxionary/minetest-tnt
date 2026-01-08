@@ -151,8 +151,7 @@ local function calc_velocity(pos1, pos2, old_vel, power)
 end
 
 local function entity_physics(pos, radius, drops, owner)
-	local objs = minetest.get_objects_inside_radius(pos, radius)
-	for _, obj in pairs(objs) do
+	for obj in core.objects_inside_radius(pos, radius) do
 		local obj_pos = obj:get_pos()
 		local dist = math.max(1, vector.distance(pos, obj_pos))
 		local damage = (4 / dist) * radius
@@ -350,11 +349,19 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 	minp, maxp = vm:read_from_map(p1, p2)
 	a = VoxelArea:new({ MinEdge = minp, MaxEdge = maxp })
 	data = vm:get_data()
+	vc = a:index(pos.x, pos.y, pos.z)
 
 	local drops = {}
 	local on_blast_queue = {}
 	local on_construct_queue = {}
 	basic_flame_on_construct = minetest.registered_nodes["fire:basic_flame"].on_construct
+
+	-- Used to efficiently remove metadata of nodes that were destroyed.
+	-- Metadata is probably sparse, so this may save us some work.
+	local has_meta = {}
+	for _, p in ipairs(minetest.find_nodes_with_meta(p1, p2)) do
+		has_meta[a:indexp(p)] = true
+	end
 
 	local c_fire = minetest.get_content_id("fire:basic_flame")
 	for z = -radius, radius do
@@ -370,8 +377,15 @@ local function tnt_explode(pos, radius, ignore_protection, ignore_on_blast, owne
 						cid ~= c_air and cid ~= c_ignore and ignore_protection
 						or ((not has_areas or areas:canInteract(p, owner)) and not minetest.is_protected(p, owner))
 					then
-						data[vi] =
+						local new_cid =
 							destroy(drops, p, cid, c_air, c_fire, on_blast_queue, on_construct_queue, ignore_on_blast)
+
+						if new_cid ~= data[vi] then
+							data[vi] = new_cid
+							if has_meta[vi] then
+								minetest.get_meta(p):from_table(nil)
+							end
+						end
 					end
 				end
 				vi = vi + 1
